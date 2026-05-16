@@ -729,6 +729,7 @@ type SessionUpdateUpdate struct {
 	Status           string `json:"status,omitempty"`
 	ExpandErrorMsg   string `json:"alk.cxykevin.top/error_msg,omitempty"`
 	CompabiltyIgnore string `json:"alk.cxykevin.top/ignore,omitempty"`
+	AgentStatus      string `json:"alk.cxykevin.top/agent_status,omitempty"`
 }
 
 // SessionUpdate 更新会话的请求

@@ -221,8 +221,7 @@ func (p *Object) Start(ctx context.Context) {
 						})
 					} else if autoHandled {
 						if approved {
-							runResponseLoop()
-							return
+							continue
 						}
 
 						if needCompress {
