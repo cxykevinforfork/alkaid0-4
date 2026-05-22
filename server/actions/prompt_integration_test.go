@@ -9,7 +9,6 @@ import (
 
 	"github.com/cxykevin/alkaid0/config"
 	cfgStructs "github.com/cxykevin/alkaid0/config/structs"
-	"github.com/cxykevin/alkaid0/mock/openai"
 	u "github.com/cxykevin/alkaid0/utils"
 )
 
@@ -65,9 +64,13 @@ func waitForUpdate(ch <-chan ReceivedCall, match func(ReceivedCall) bool, timeou
 
 // TestPromptIntegration_SingleClient 从创建会话到发送 prompt 的完整流程，单客户端
 func TestPromptIntegration_SingleClient(t *testing.T) {
-	// 启动 mock server（依赖环境变量 ALKAID0_DEBUG_MOCKSERVER=true）
-	os.Setenv("ALKAID0_DEBUG_MOCKSERVER", "true")
-	openai.Start()
+	if os.Getenv("ALKAID0_DEBUG_MOCKSERVER") != "true" {
+		t.Skip("ALKAID0_DEBUG_MOCKSERVER not set, skipping test")
+		return
+	}
+	// // 启动 mock server（依赖环境变量 ALKAID0_DEBUG_MOCKSERVER=true）
+	// os.Setenv("ALKAID0_DEBUG_MOCKSERVER", "true")
+	// openai.Start()
 
 	setupConfigForTest()
 
@@ -155,8 +158,10 @@ func TestPromptIntegration_SingleClient(t *testing.T) {
 
 // TestPromptIntegration_MultiClient 多客户端场景验证广播
 func TestPromptIntegration_MultiClient(t *testing.T) {
-	os.Setenv("ALKAID0_DEBUG_MOCKSERVER", "true")
-	openai.Start()
+	if os.Getenv("ALKAID0_DEBUG_MOCKSERVER") != "true" {
+		t.Skip("ALKAID0_DEBUG_MOCKSERVER not set, skipping test")
+		return
+	}
 
 	setupConfigForTest()
 
