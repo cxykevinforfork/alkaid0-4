@@ -6,7 +6,6 @@ import (
 	stdjson "encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/cxykevin/alkaid0/provider/request/agents/actions"
 	"github.com/cxykevin/alkaid0/provider/request/build"
 	"github.com/cxykevin/alkaid0/provider/request/structs"
-	reqStruct "github.com/cxykevin/alkaid0/provider/request/structs"
 	"github.com/cxykevin/alkaid0/provider/response"
 	storageStructs "github.com/cxykevin/alkaid0/storage/structs"
 	"github.com/cxykevin/alkaid0/tools"
@@ -149,31 +147,44 @@ func exprTruthy(value any) bool {
 	if value == nil {
 		return false
 	}
-	if value == true {
-		return true
-	}
-	if value == false {
-		return false
-	}
-	v := reflect.ValueOf(value)
-	switch v.Kind() {
-	case reflect.Bool:
-		return v.Bool()
-	case reflect.String:
-		return v.String() != ""
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() != 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return v.Uint() != 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() != 0
-	case reflect.Slice, reflect.Array, reflect.Map:
-		return v.Len() > 0
-	case reflect.Pointer, reflect.Interface:
-		if v.IsNil() {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		return v != ""
+	case int:
+		return v != 0
+	case int8:
+		return v != 0
+	case int16:
+		return v != 0
+	case int32:
+		return v != 0
+	case int64:
+		return v != 0
+	case uint:
+		return v != 0
+	case uint8:
+		return v != 0
+	case uint16:
+		return v != 0
+	case uint32:
+		return v != 0
+	case uint64:
+		return v != 0
+	case float32:
+		return v != 0
+	case float64:
+		return v != 0
+	case []any:
+		return len(v) > 0
+	case map[string]any:
+		return len(v) > 0
+	case *any:
+		if v == nil {
 			return false
 		}
-		return exprTruthy(v.Elem().Interface())
+		return exprTruthy(*v)
 	default:
 		return true
 	}
@@ -627,7 +638,7 @@ func SendRequest(ctx context.Context, session *storageStructs.Chats, callback fu
 
 	// solveFunc 是 SimpleOpenAIRequest 的回调函数，每次收到流式响应体时调用。
 	// 内部处理：增量解析 token → 累积内容 → 达到阈值时写库 → 实时推送到 UI
-	solveFunc := func(body reqStruct.ChatCompletionResponse) error {
+	solveFunc := func(body structs.ChatCompletionResponse) error {
 		if session.State == state.StateRequesting {
 			session.State = state.StateReciving
 		}

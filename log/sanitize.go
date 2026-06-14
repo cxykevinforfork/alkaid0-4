@@ -3,7 +3,18 @@ package log
 import (
 	"regexp"
 	"strings"
+	"sync"
 )
+
+// 静态前缀列表
+const prefixPattern = `(?:sk-|AIza|claude-|xai-|hf_|gsk_|alk-|ak-|sk_|pk_|nv-api-|brx-|qwen-|pplx-|key-|app-|secret-|Bearer|ghp_|gocdk-|gcp-|gcs-|gcs_|cdk-|cdk_)`
+
+// 完整正则表达式：匹配 API 密钥或网址
+const sensitivePattern = `\b(` + prefixPattern + `)[A-Za-z0-9-_]{8,}\b|(https?://|www\.)[^/\s]+(/\S*)?`
+
+var sensitiveRegex = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(sensitivePattern)
+})
 
 // SanitizeSensitiveInfo 自动脱敏API密钥和网址（全局静态配置）
 // API密钥：保留前缀，替换为 sk-***, AIza***, claude-***, xai-***, hf_***, gsk_***, alk-***
@@ -12,12 +23,7 @@ func SanitizeSensitiveInfo(text string) string {
 		return ""
 	}
 
-	// 静态前缀列表，直接写死在函数内
-	const prefixPattern = `(?:sk-|AIza|claude-|xai-|hf_|gsk_|alk-|ak-|sk_|pk_|nv-api-|brx-|qwen-|pplx-|key-|app-|secret-|Bearer|ghp_|gocdk-|gcp-|gcs-|gcs_|cdk-|cdk_)`
-
-	// 完整正则表达式
-	pattern := `\b(` + prefixPattern + `)[A-Za-z0-9-_]{8,}\b|(https?://|www\.)[^/\s]+(/\S*)?`
-	re := regexp.MustCompile(pattern)
+	re := sensitiveRegex()
 
 	// 执行替换
 	result := re.ReplaceAllStringFunc(text, func(match string) string {

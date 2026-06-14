@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/cxykevin/alkaid0/config/structs"
 	"github.com/cxykevin/alkaid0/internal/configutil"
@@ -97,24 +98,35 @@ func Save() {
 	}
 
 	os.WriteFile(expandedPath, data, 0644)
-	for _, hook := range reloadHooks {
+	reloadHooksMu.RLock()
+	hooks := reloadHooks
+	reloadHooksMu.RUnlock()
+	for _, hook := range hooks {
 		hook()
 	}
 }
 
 // reloadHooks 配置重载时的回调函数列表
-var reloadHooks []func()
+var (
+	reloadHooksMu sync.RWMutex
+	reloadHooks   []func()
+)
 
 // AddReloadHook 注册配置重载后的回调钩子
 func AddReloadHook(hook func()) {
+	reloadHooksMu.Lock()
 	reloadHooks = append(reloadHooks, hook)
+	reloadHooksMu.Unlock()
 }
 
 // Reload 重新加载配置文件并触发所有注册的重载回调。
 // 用于运行时配置热更新，如修改模型参数后无需重启进程。
 func Reload() {
 	Load()
-	for _, hook := range reloadHooks {
+	reloadHooksMu.RLock()
+	hooks := reloadHooks
+	reloadHooksMu.RUnlock()
+	for _, hook := range hooks {
 		hook()
 	}
 }

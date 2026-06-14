@@ -76,11 +76,13 @@ func parseConfig() Config {
 	}
 }
 
+// logLineRegex 匹配日志格式的预编译正则表达式
+// 2025/12/07 14:04:35 [INFO][log] log inited
+var logLineRegex = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+\[([A-Z]+)\]\[([^\]]+)\]\s+(.*)$`)
+
 // parseLogLine 解析单行日志，匹配标准日志格式并返回 LogEntry
 func parseLogLine(line string) *LogEntry {
-	// 匹配日志格式的正则表达式
-	// 2025/12/07 14:04:35 [INFO][log] log inited
-	re := regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+\[([A-Z]+)\]\[([^\]]+)\]\s+(.*)$`)
+	re := logLineRegex
 
 	matches := re.FindStringSubmatch(line)
 	if len(matches) != 5 {
@@ -127,21 +129,20 @@ func highlightTimestamp(timestamp string, noColor bool) string {
 }
 
 // highlightLevel 给日志级别添加对应颜色高亮
-
 func highlightLevel(level string, noColor bool) string {
 	color := levelColors[level]
 	if color == "" {
 		color = White
 	}
 	return colorize("["+level+"]", color, noColor)
-	// highlightCategory 给日志分类名添加品红色高亮
 }
 
+// highlightCategory 给日志分类名添加品红色高亮
 func highlightCategory(category string, noColor bool) string {
 	return colorize("["+category+"]", Magenta, noColor)
-	// displayLogEntry 格式化并输出一条日志条目
 }
 
+// displayLogEntry 格式化并输出一条日志条目
 func displayLogEntry(entry *LogEntry, config Config) {
 	timestamp := highlightTimestamp(entry.Timestamp, config.NoColor)
 	level := highlightLevel(entry.Level, config.NoColor)

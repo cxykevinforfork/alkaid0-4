@@ -10,14 +10,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/cxykevin/alkaid0/config/structs"
 	"github.com/cxykevin/alkaid0/internal/configutil"
 )
 
 var globalLogLevel = 1
-
-// GlobalConfig 配置文件对象
-var GlobalConfig = &structs.Config{}
 
 const defaultLogPath = "~/.config/alkaid0/log.log"
 const envLogName = "ALKAID0_LOG_PATH"
@@ -44,11 +40,16 @@ var isShutdown uint32
 
 // var logLck sync.Mutex
 
-// Load 加载配置文件
+var loadMu sync.Mutex
+
+// Load 加载配置文件。使用互斥锁保证并发安全，首次调用执行实际初始化。
 func Load() {
+	loadMu.Lock()
 	if loggerInited {
+		loadMu.Unlock()
 		return
 	}
+
 	if v := os.Getenv("ALKAID0_LOG_LEVEL"); v != "" {
 		switch v {
 		case "debug":
@@ -76,17 +77,12 @@ func Load() {
 	dir := filepath.Dir(expandedPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		// 目录创建失败，使用默认配置
+		loadMu.Unlock()
 		return
 	}
 
-	// 新建/清空日志
-	if _, err := os.Create(expandedPath); err != nil {
-		// 直接 panic
-		panic(err)
-	}
-
-	// 打开日志文件
-	file, err := os.OpenFile(expandedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// 使用 OpenFile 直接创建/清空并打开日志文件（一次操作，避免 Create + OpenFile 两次系统调用）
+	file, err := os.OpenFile(expandedPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		// 直接 panic
 		panic(err)
@@ -102,6 +98,7 @@ func Load() {
 	go logWorker()
 
 	loggerInited = true
+	loadMu.Unlock() // 先释放锁，避免 log.go:New→Load 的环形调用导致死锁
 
 	sysObj := New("log")
 	sysObj.Info("log inited")
@@ -145,6 +142,23 @@ type LogsObj struct {
 	moduleName string
 }
 
+// sanitizeAndEscape 对日志消息进行脱敏和转义处理。
+// 先脱敏 API 密钥等敏感信息，再将多行内容转义为单行（\n→\\n 等），
+// 保持日志文件格式整洁，便于后续 grep/awk 处理。
+func sanitizeAndEscape(msg string, v ...any) string {
+	str := fmt.Sprintf(msg, v...)
+	// 自动脱敏 API 密钥等敏感信息，避免日志泄露
+	str = SanitizeSensitiveInfo(str)
+	// 转义特殊字符保持日志单行格式
+	str = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(
+		str,
+		"\\", "\\\\"),
+		"\n", "\\n"),
+		"\r", "\\r"),
+		"\t", "\\t")
+	return str
+}
+
 // log 核心日志写入方法。
 // 设计要点：
 //  1. 先脱敏（SanitizeSensitiveInfo）再写入，确保密钥等敏感信息不被记录
@@ -153,16 +167,7 @@ type LogsObj struct {
 //  4. 正常运行时使用有缓冲通道异步写入，select-default 在通道满时丢弃日志
 //     防止高频日志拖慢主程序
 func (l *LogsObj) log(level string, msg string, v ...any) {
-	str := fmt.Sprintf(msg, v...)
-	// 自动脱敏 API 密钥等敏感信息，避免日志泄露
-	str = SanitizeSensitiveInfo(str)
-	// 转义特殊字符保持日志单行格式，便于后续 grep/awk 处理
-	str = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(
-		str,
-		"\\", "\\\\"),
-		"\n", "\\n"),
-		"\r", "\\r"),
-		"\t", "\\t")
+	str := sanitizeAndEscape(msg, v...)
 
 	// isShutdown 标志下改用同步写入。
 	// 原因：关闭期间 logWorker 可能已退出，通道接收会 panic。
@@ -196,14 +201,7 @@ func (l *LogsObj) log(level string, msg string, v ...any) {
 // 在关闭阶段（isShutdown）或通道满载时作为 fallback 使用。
 // 同步写入虽会阻塞，但能保证日志不丢失。
 func (l *LogsObj) logSync(level string, msg string, v ...any) {
-	str := fmt.Sprintf(msg, v...)
-	str = SanitizeSensitiveInfo(str)
-	str = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(
-		str,
-		"\\", "\\\\"),
-		"\n", "\\n"),
-		"\r", "\\r"),
-		"\t", "\\t")
+	str := sanitizeAndEscape(msg, v...)
 
 	// 同步写入日志
 	Logger.Printf("[%s][%s] %s", level, l.moduleName, str)

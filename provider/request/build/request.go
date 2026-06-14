@@ -193,7 +193,7 @@ func RequestBody(chatID uint32, modelID int32, agentCode string, toolsList *[]*p
 
 	// 4. 工具使用指引
 	systemContent += prompts.Tools + "\\n\\n"
-	// 神秘上下文优化，但是好用
+	// 重复追加可增强模型对工具的理解
 	systemContent += prompts.Tools + "\\n\\n"
 
 	// 5. 工具列表

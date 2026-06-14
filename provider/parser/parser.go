@@ -381,11 +381,11 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 			if char == '>' {
 				if p.KeyMode == 1 && p.TokenCache == "think" {
 					logger.Debug("exiting think mode")
-					p.KeyMode = 1
+					p.KeyMode = 0 // 退出 think 模式，回到普通文本
 				} else if p.KeyMode == 2 && p.TokenCache == "tools" {
 					// 工具调用结束，让 JSON 解析器完成剩余解析并标记已调用工具
 					logger.Debug("exiting tools mode")
-					p.KeyMode = 2
+					p.KeyMode = 0 // 退出 tools 模式，回到普通文本
 					err := p.jsonParser.DoneToken()
 					if err != nil {
 						logger.Error("jsonParser DoneToken error: %v", err)
