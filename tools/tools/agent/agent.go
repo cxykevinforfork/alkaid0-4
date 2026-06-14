@@ -139,9 +139,9 @@ func updateAgentInfo(session *structs.Chats, mp map[string]*any, cross []*any, t
 	session.ToolCallingType[toolCallID] = "agent"
 
 	return true, cross, nil
-	// updateInfo 处理激活/停用子代理的调用信息记录
 }
 
+// updateInfo 处理激活/停用子代理的调用信息记录
 func updateInfo(session *structs.Chats, mp map[string]*any, cross []*any, toolID string) (bool, []*any, error) {
 	currToolName := u.Ternary(session.CurrentAgentID == "", "activate_agent", "deactivate_agent")
 	toolCallID := fmt.Sprintf("call_%d_%d_%s", session.ID, session.CurrentMessageID, toolID)

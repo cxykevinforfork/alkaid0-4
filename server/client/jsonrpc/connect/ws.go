@@ -56,7 +56,9 @@ func StartWs(handler func(string, func(string) error, uint64) (returnString stri
 			}
 		}
 		if token != config.GlobalConfig.Server.Key {
-			loggerWs.Error("invalid token")
+			loggerWs.Error("invalid token, rejecting connection")
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
 		}
 		// 升级连接到 WebSocket
 		upgder := websocket.Upgrader{

@@ -84,7 +84,7 @@ func SubAgentReject(session *storageStructs.Chats) error {
 			Delta:   reason,
 			Refers:  refer,
 			Type:    storageStructs.MessagesRoleCommunicate,
-			AgentID: new(session.CurrentAgentID),
+			AgentID: &session.CurrentAgentID,
 		}).Error; err != nil {
 			return err
 		}
@@ -185,6 +185,10 @@ func exprTruthy(value any) bool {
 			return false
 		}
 		return exprTruthy(*v)
+	case []*any:
+		return len(v) > 0
+	case map[string]*any:
+		return len(v) > 0
 	default:
 		return true
 	}
@@ -583,10 +587,10 @@ func SendRequest(ctx context.Context, session *storageStructs.Chats, callback fu
 		}
 	}
 	modelCfg, ok := config.GlobalConfig.Model.Models[int32(modelID)]
-	logger.Info("SendRequest: using model %s (ID: %d)", modelCfg.ModelName, modelID)
 	if !ok {
 		return true, errors.New("model not found")
 	}
+	logger.Info("SendRequest: using model %s (ID: %d)", modelCfg.ModelName, modelID)
 
 	// var agentConfig *cfgStruct.AgentConfig = nil
 	// if agentID != "" {
@@ -691,7 +695,7 @@ func SendRequest(ctx context.Context, session *storageStructs.Chats, callback fu
 			CompletionTokens: completionUsage,
 			TotalTokens:      totalUsage,
 			CachedTokens:     cachedUsage,
-		}, new(session.CurrentAgentID)); err != nil {
+		}, &session.CurrentAgentID); err != nil {
 			return err
 		}
 		return nil
@@ -770,7 +774,7 @@ func SendRequest(ctx context.Context, session *storageStructs.Chats, callback fu
 		CompletionTokens: completionUsage,
 		TotalTokens:      totalUsage,
 		CachedTokens:     cachedUsage,
-	}, new(session.CurrentAgentID))
+	}, &session.CurrentAgentID)
 	if err != nil {
 		return true, err
 	}

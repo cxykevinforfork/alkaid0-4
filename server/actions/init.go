@@ -2,6 +2,7 @@ package actions
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/cxykevin/alkaid0/product"
 	u "github.com/cxykevin/alkaid0/utils"
@@ -47,14 +48,19 @@ var AgentInfo = u.H{
 	"version": product.Version,
 }
 
-var clientConnCaps = map[uint64]u.H{}
+var (
+	clientConnCapsMu sync.RWMutex
+	clientConnCaps   = map[uint64]u.H{}
+)
 
 // Initialize 初始化
 func Initialize(req InitializeRequest, call func(string, any, *string) error, connID uint64) (InitializeResponse, error) {
 	if req.ProtocolVersion != protoVersion {
 		return InitializeResponse{}, fmt.Errorf("protocol version not match")
 	}
+	clientConnCapsMu.Lock()
 	clientConnCaps[connID] = req.ClientCapabilities
+	clientConnCapsMu.Unlock()
 	return InitializeResponse{
 		ProtocolVersion:   protoVersion,
 		AgentCapabilities: AgentCapabilities,

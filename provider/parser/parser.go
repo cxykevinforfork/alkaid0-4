@@ -55,14 +55,30 @@ type ToolParameters struct {
 
 const maxTagLen = 6
 
+// 状态机主模式常量
+const (
+			ModeOutside        int16 = iota // 0-标签外
+	ModeEnterTag                    // 1-进入标签起始
+	ModeInTag                       // 2-标签内容
+	ModePossibleEnd                 // 3-可能的结束标签起始
+	ModeEndTagName                  // 4-结束标签名解析
+)
+
+// KeyMode 逻辑区域常量
+const (
+	KeyModeNormal int16 = iota // 0-普通文本
+	KeyModeThink               // 1-思考(think)
+	KeyModeTools               // 2-工具调用(tools)
+)
+
 // Parser 流式解析器，负责从 AI 响应流中提取 <think> 和 <tools> 标签内容。
 // 它使用状态机处理可能被切分的 token，确保在流式传输中准确识别标签边界。
 type Parser struct {
 	Session          *structs.Chats
 	Tools            []*ToolsDefine
 	TokenCache       string // 缓存正在解析中的标签名（如 "think" 或 "tools"）
-	Mode             int16  // 状态机主模式：0-外部, 1-进入标签, 2-标签内容, 3-可能的结束标签起始, 4-结束标签名解析
-	KeyMode          int16  // 当前所处的逻辑区域：0-普通文本, 1-思考(think), 2-工具调用(tools)
+	Mode             int16  // 状态机主模式
+	KeyMode          int16  // 当前所处的逻辑区域
 	Stop             bool   // 发生错误时停止解析
 	jsonParser       *json.Parser
 	toolSolveTmp     toolSolveTmp
@@ -298,7 +314,7 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 	for _, char := range token {
 		// solveTag 根据当前 KeyMode 将标签内内容分发到对应的缓冲区或解析器
 		solveTag := func(tokens string) error {
-			if p.KeyMode == 1 { // 处于 <think> 标签内：累积到响应思考内容
+			if p.KeyMode == KeyModeThink { // 处于 <think> 标签内：累积到响应思考内容
 				responseThinking.WriteString(tokens)
 			} else { // 处于 <tools> 标签内：交由 jsonParser 增量解析工具调用
 				p.ToolOriginString.WriteString(tokens)
@@ -314,50 +330,50 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 			return nil
 		}
 		switch p.Mode {
-		case 0: // 状态：标签外。寻找标签起始符 '<'。
+		case ModeOutside: // 状态：标签外。寻找标签起始符 '<'。
 			// 绝大多数文本在这里直接输出到普通响应缓冲区
 			if char == '<' {
-				p.Mode = 1
+				p.Mode = ModeEnterTag
 				p.TokenCache = ""
 				continue
 			}
 			response.WriteString(string(char))
-		case 1: // 状态：已收到 '<'，正在解析标签名。
+		case ModeEnterTag: // 状态：已收到 '<'，正在解析标签名。
 			if char == '>' {
 				switch p.TokenCache {
 				case "think":
 					// 匹配 <think> 标签，后续内容进入思考模式
 					logger.Debug("entering think mode")
 					logger.Info("Parser: entering think mode")
-					p.KeyMode = 1
+					p.KeyMode = KeyModeThink
 				case "tools":
 					// 匹配 <tools> 标签，创建 JSON 解析器开始解析工具调用数组
 					logger.Debug("entering tools mode")
 					logger.Info("Parser: entering tools mode")
 					p.jsonParser = json.New()
-					p.KeyMode = 2
+					p.KeyMode = KeyModeTools
 				default:
 					// 非预期的标签（如 `<random>`），原样退回给普通响应
 					response.WriteString("<" + p.TokenCache + ">")
 					p.TokenCache = ""
-					p.Mode = 0
+					p.Mode = ModeOutside
 					continue
 				}
 				p.TokenCache = ""
-				p.Mode = 2 // 进入标签内容解析模式
+				p.Mode = ModeInTag // 进入标签内容解析模式
 				continue
 			}
 			p.TokenCache += string(char)
 			// 防止标签名过长导致内存溢出，若超过 maxTagLen 则视为普通文本
 			if len(p.TokenCache) >= maxTagLen {
-				p.Mode = 0
+				p.Mode = ModeOutside
 				response.WriteString("<" + p.TokenCache)
 				p.TokenCache = ""
 				continue
 			}
-		case 2: // 状态：处于标签内容中。寻找可能的结束标签起始符 '<'。
+		case ModeInTag: // 状态：处于标签内容中。寻找可能的结束标签起始符 '<'。
 			if char == '<' {
-				p.Mode = 3
+				p.Mode = ModePossibleEnd
 				continue
 			}
 			// 将内容分发到对应的处理逻辑（think 或 tools）
@@ -365,27 +381,27 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 			if err != nil {
 				return "", "", nil, err
 			}
-		case 3: // 状态：在标签内收到了 '<'，判断是否为结束标签（即紧跟 '/'）。
+		case ModePossibleEnd: // 状态：在标签内收到了 '<'，判断是否为结束标签（即紧跟 '/'）。
 			if char == '/' {
-				p.Mode = 4
+				p.Mode = ModeEndTagName
 				p.TokenCache = ""
 				continue
 			}
 			// 不是结束标签，将之前的 '<' 作为内容处理并回退到模式 2
-			p.Mode = 2
+			p.Mode = ModeInTag
 			err := solveTag("<" + string(char))
 			if err != nil {
 				return "", "", nil, err
 			}
-		case 4: // 状态：正在解析结束标签名（如 "/think" 或 "/tools"）。
+		case ModeEndTagName: // 状态：正在解析结束标签名（如 "/think" 或 "/tools"）。
 			if char == '>' {
-				if p.KeyMode == 1 && p.TokenCache == "think" {
+				if p.KeyMode == KeyModeThink && p.TokenCache == "think" {
 					logger.Debug("exiting think mode")
-					p.KeyMode = 0 // 退出 think 模式，回到普通文本
-				} else if p.KeyMode == 2 && p.TokenCache == "tools" {
+					p.KeyMode = KeyModeNormal // 退出 think 模式，回到普通文本
+				} else if p.KeyMode == KeyModeTools && p.TokenCache == "tools" {
 					// 工具调用结束，让 JSON 解析器完成剩余解析并标记已调用工具
 					logger.Debug("exiting tools mode")
-					p.KeyMode = 0 // 退出 tools 模式，回到普通文本
+					p.KeyMode = KeyModeNormal // 退出 tools 模式，回到普通文本
 					err := p.jsonParser.DoneToken()
 					if err != nil {
 						logger.Error("jsonParser DoneToken error: %v", err)
@@ -399,15 +415,15 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 						return "", "", nil, err
 					}
 					p.TokenCache = ""
-					p.Mode = 2
+					p.Mode = ModeInTag
 					continue
 				}
-				p.Mode = 0 // 成功匹配结束标签，回到标签外状态
+				p.Mode = ModeOutside // 成功匹配结束标签，回到标签外状态
 				continue
 			}
 			p.TokenCache += string(char)
 			if len(p.TokenCache) >= maxTagLen {
-				p.Mode = 2
+				p.Mode = ModeInTag
 				err := solveTag("</" + p.TokenCache)
 				if err != nil {
 					return "", "", nil, err
@@ -423,22 +439,22 @@ func (p *Parser) AddToken(token string, tokenThinking string) (string, string, *
 // DoneToken 传入结束 token
 func (p *Parser) DoneToken() (string, string, *[]AIToolsResponse, error) {
 	switch p.Mode {
-	case 0: // 标签外
+	case ModeOutside: // 标签外
 		// 无需处理
-	case 1: // 入标签本身
+	case ModeEnterTag: // 入标签本身
 		return "<" + p.TokenCache, "", nil, nil
-	case 2: // 标签内
-		if p.KeyMode == 1 {
+	case ModeInTag: // 标签内
+		if p.KeyMode == KeyModeThink {
 			return "", "", nil, nil
 		}
 		return "", "", nil, nil
-	case 3: // 出标签左尖括号
-		if p.KeyMode == 1 {
+	case ModePossibleEnd: // 出标签左尖括号
+		if p.KeyMode == KeyModeThink {
 			return "", "<", nil, nil
 		}
 		return "", "", nil, nil
-	case 4: // 出标签本身
-		if p.KeyMode == 1 {
+	case ModeEndTagName: // 出标签本身
+		if p.KeyMode == KeyModeThink {
 			return "", "</" + p.TokenCache, nil, nil
 		}
 		return "", "", nil, nil

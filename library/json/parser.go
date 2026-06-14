@@ -231,22 +231,23 @@ func (p *Parser) beginValueSlot(initial any) (*any, error) {
 	}
 }
 
+// isNumChar 判断字符是否为数字或数字相关符号（包级函数，避免每次 AddToken 重新创建）
+func isNumChar(r rune) bool {
+	if r >= '0' && r <= '9' {
+		return true
+	}
+	switch r {
+	case '-', '+', '.', 'e', 'E':
+		return true
+	default:
+		return false
+	}
+}
+
 // AddToken 流式传入 token
 func (p *Parser) AddToken(token string) error {
 	if p.Stop {
 		return errors.New("parser stopped but received token")
-	}
-	// 简化实现：以 mode 为主判断，TypeStack 仅用于跟踪容器 (object/array)
-	isNumChar := func(r rune) bool {
-		if r >= '0' && r <= '9' {
-			return true
-		}
-		switch r {
-		case '-', '+', '.', 'e', 'E':
-			return true
-		default:
-			return false
-		}
 	}
 
 	for _, rv := range token {

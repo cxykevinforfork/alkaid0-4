@@ -36,7 +36,7 @@ func Path() string {
 // 先初始化默认配置（含产品版本号和默认模型），然后尝试从文件系统读取 JSON 配置。
 // 文件不存在或解析失败时会备份原文件（加上 .bak 后缀）并用默认配置兜底。
 func Load() {
-	// 第 1 步：使用默认配置初始化（作为任何解析失败的 fallback）
+	// 使用默认配置初始化（作为任何解析失败的 fallback）
 	model := structs.ModelsConfig{}
 	model = structs.BuildDefault(model)
 	GlobalConfig = &structs.Config{
@@ -44,21 +44,21 @@ func Load() {
 		Model:   model,
 	}
 
-	// 第 2 步：确定配置文件路径
+	// 确定配置文件路径
 	if path := os.Getenv(envConfigName); path != "" {
 		configPath = path
 	} else {
 		configPath = defaultConfigPath
 	}
 
-	// 第 3 步：展开用户目录并确保目录存在
+	// 展开用户目录并确保目录存在
 	expandedPath := configutil.ExpandPath(configPath)
 	dir := filepath.Dir(expandedPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return
 	}
 
-	// 第 4 步：读取并解析配置文件
+	// 读取并解析配置文件
 	data, err := os.ReadFile(expandedPath)
 	if err != nil {
 		// 文件不存在或读取失败时备份旧文件并创建新配置
@@ -70,7 +70,7 @@ func Load() {
 		return
 	}
 
-	// 第 5 步：JSON 反序列化
+	// JSON 反序列化
 	if err := json.Unmarshal(data, GlobalConfig); err != nil {
 		// 解析失败时备份原文件
 		backupPath := expandedPath + ".bak"
@@ -98,12 +98,7 @@ func Save() {
 	}
 
 	os.WriteFile(expandedPath, data, 0644)
-	reloadHooksMu.RLock()
-	hooks := reloadHooks
-	reloadHooksMu.RUnlock()
-	for _, hook := range hooks {
-		hook()
-	}
+	fireReloadHooks()
 }
 
 // reloadHooks 配置重载时的回调函数列表
@@ -119,14 +114,19 @@ func AddReloadHook(hook func()) {
 	reloadHooksMu.Unlock()
 }
 
-// Reload 重新加载配置文件并触发所有注册的重载回调。
-// 用于运行时配置热更新，如修改模型参数后无需重启进程。
-func Reload() {
-	Load()
+// fireReloadHooks 触发所有注册的重载回调
+func fireReloadHooks() {
 	reloadHooksMu.RLock()
 	hooks := reloadHooks
 	reloadHooksMu.RUnlock()
 	for _, hook := range hooks {
 		hook()
 	}
+}
+
+// Reload 重新加载配置文件并触发所有注册的重载回调。
+// 用于运行时配置热更新，如修改模型参数后无需重启进程。
+func Reload() {
+	Load()
+	fireReloadHooks()
 }

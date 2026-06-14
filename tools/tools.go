@@ -14,11 +14,11 @@ var logger *log.LogsObj
 
 func init() {
 	logger = log.New("tools")
-	toolobj.Scopes[""] = "Global"
-	toolobj.ToolsList[""] = &toolobj.Tools{
+	toolobj.SetScope("", "Global")
+	toolobj.SetTool(&toolobj.Tools{
 		Name: "Global",
 		ID:   "",
-	}
+	})
 }
 
 func checkScopeEnabled(session *structs.Chats, scope string) bool {
@@ -38,20 +38,23 @@ func ExecOneToolGetPrompts(session *structs.Chats, name string) ([]string, []str
 	logger.Debug("getting prompts for tool: %s", name)
 	// 收集所有未启用的 scope 的提示词，用于告知 AI 哪些工具当前不可用
 	unusedHooks := make([]string, 0)
+	toolobj.ScopesMu.RLock()
 	for name, prompts := range toolobj.Scopes {
 		if !checkScopeEnabled(session, name) {
 			unusedHooks = append(unusedHooks, prompts)
 		}
 	}
+	toolobj.ScopesMu.RUnlock()
 
 	prehooks := make([]string, 0)
 	// 检查工具是否存在
-	if val, ok := toolobj.ToolsList[name]; !ok || val == nil {
+	t := toolobj.GetTool(name)
+	if t == nil {
 		return unusedHooks, prehooks, make(map[string]parser.ToolParameters)
 	}
 
-	hookTmp := toolobj.ToolsList[name].Hooks
-	paras := toolobj.ToolsList[name].Parameters
+	hookTmp := toolobj.GetToolHooks(name)
+	paras := t.Parameters
 
 	// 将tmp中的钩子按Priority排序（高优先级排在前面，先执行）
 	sort.Slice(hookTmp, func(i, j int) bool {
@@ -61,7 +64,7 @@ func ExecOneToolGetPrompts(session *structs.Chats, name string) ([]string, []str
 	// 遍历所有 hook，仅执行已启用 scope 的 PreHook
 	// 执行结果文本追加到 prehooks 列表，最终合并为工具上下文的提示词
 	for _, hook := range hookTmp {
-		if _, ok := toolobj.Scopes[hook.Scope]; !ok {
+		if _, ok := toolobj.GetScope(hook.Scope); !ok {
 			logger.Error("hook scope \"%v\" not found", hook.Scope)
 			continue
 		}
@@ -92,11 +95,12 @@ func ExecToolOnHook(session *structs.Chats, name string, args map[string]*any, t
 	passObjs := make([]*any, 0)
 
 	// 检查工具是否存在
-	if toolobj.ToolsList[name] == nil {
+	t := toolobj.GetTool(name)
+	if t == nil {
 		return nil
 	}
 
-	hookTmp := toolobj.ToolsList[name].Hooks
+	hookTmp := toolobj.GetToolHooks(name)
 
 	// 将tmp中的钩子按Priority排序
 	sort.Slice(hookTmp, func(i, j int) bool {
@@ -104,7 +108,7 @@ func ExecToolOnHook(session *structs.Chats, name string, args map[string]*any, t
 	})
 
 	for _, hook := range hookTmp {
-		if _, ok := toolobj.Scopes[hook.Scope]; !ok {
+		if _, ok := toolobj.GetScope(hook.Scope); !ok {
 			continue
 		}
 		if !checkScopeEnabled(session, hook.Scope) {
@@ -134,11 +138,12 @@ func ExecToolPostHook(session *structs.Chats, name string, args map[string]*any,
 	passObjs := make([]*any, 0)
 
 	// 检查工具是否存在
-	if toolobj.ToolsList[name] == nil {
+	t := toolobj.GetTool(name)
+	if t == nil {
 		return map[string]*any{}, nil
 	}
 
-	hookTmp := toolobj.ToolsList[name].Hooks
+	hookTmp := toolobj.GetToolHooks(name)
 
 	// 将tmp中的钩子按Priority排序
 	sort.Slice(hookTmp, func(i, j int) bool {
@@ -146,7 +151,7 @@ func ExecToolPostHook(session *structs.Chats, name string, args map[string]*any,
 	})
 
 	for _, hook := range hookTmp {
-		if _, ok := toolobj.Scopes[hook.Scope]; !ok {
+		if _, ok := toolobj.GetScope(hook.Scope); !ok {
 			continue
 		}
 		if !checkScopeEnabled(session, hook.Scope) {

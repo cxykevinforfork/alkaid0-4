@@ -9,7 +9,6 @@ import (
 )
 
 // logger 包级日志对象
-// logger 包级日志对象
 var logger *log.LogsObj
 
 func init() {

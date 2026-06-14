@@ -9,17 +9,19 @@ import (
 
 // AddScope 添加工具命名空间
 func AddScope(name string, prompt string) {
-	toolobj.Scopes[name] = prompt
+	toolobj.SetScope(name, prompt)
 }
 
 // AddTool 添加工具
 func AddTool(tool *toolobj.Tools) {
-	toolobj.ToolsList[tool.ID] = tool
+	toolobj.SetTool(tool)
 }
 
 // HookTool 为工具添加钩子
 func HookTool(name string, hook *toolobj.Hook) {
-	toolobj.ToolsList[name].Hooks = append(toolobj.ToolsList[name].Hooks, *hook)
+	if ok := toolobj.AppendToolHook(name, *hook); !ok {
+		panic(fmt.Sprintf("tool %q not registered before HookTool", name))
+	}
 }
 
 // EnableScope 启用命名空间
@@ -27,7 +29,7 @@ func EnableScope(session *structs.Chats, scope string) error {
 	if scope == "" {
 		return nil
 	}
-	_, ok := toolobj.Scopes[scope]
+	_, ok := toolobj.GetScope(scope)
 	if !ok {
 		return fmt.Errorf("scope \"%v\" not found", scope)
 	}
@@ -44,7 +46,7 @@ func DisableScope(session *structs.Chats, scope string) error {
 	if scope == "" {
 		return nil
 	}
-	_, ok := toolobj.Scopes[scope]
+	_, ok := toolobj.GetScope(scope)
 	if !ok {
 		return fmt.Errorf("scope \"%v\" not found", scope)
 	}

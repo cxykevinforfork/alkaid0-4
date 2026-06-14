@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cxykevin/alkaid0/config"
@@ -29,7 +30,14 @@ import (
 
 const toolName = "run"
 
-var sysVer string = ""
+// sysVerOnce 惰性初始化系统版本信息（线程安全）
+var sysVerOnce = sync.OnceValue(func() string {
+	info, err := host.Info()
+	if err != nil {
+		return "unknown"
+	}
+	return info.Platform + " " + info.PlatformVersion
+})
 
 //go:embed prompt.md
 var prompt string
@@ -198,68 +206,49 @@ func updateInfo(session *structs.Chats, mp map[string]*any, cross []*any, toolID
 	return true, cross, nil
 }
 
+// errResult 快速构造错误响应（减少重复的 boolx/success/error 构造模式）
+func errResult(msg string, cross []*any) (bool, []*any, map[string]*any, error) {
+	f := false
+	s := any(f)
+	e := any(msg)
+	return false, cross, map[string]*any{"success": &s, "error": &e}, nil
+}
+
 func runTask(session *structs.Chats, mp map[string]*any, cross []*any) (bool, []*any, map[string]*any, error) {
 	runTypeObj, ok := mp["type"]
 	if !ok || runTypeObj == nil {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: type is required")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: type is required", cross)
 	}
 	runType, ok := asString(runTypeObj)
 	if !ok {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: type must be string")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: type must be string", cross)
 	}
 	if runType != "shell" {
-		boolx := false
-		success := any(boolx)
-		out := any(fmt.Sprintf("[System] Parameter Error: type '%s' not supported, only 'shell' is allowed", runType))
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult(fmt.Sprintf("[System] Parameter Error: type '%s' not supported, only 'shell' is allowed", runType), cross)
 	}
 
 	reasonObj, ok := mp["reason"]
 	if !ok || reasonObj == nil {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: reason is required")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: reason is required", cross)
 	}
 	reason, ok := asString(reasonObj)
 	if !ok {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: reason must be string")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: reason must be string", cross)
 	}
 	if reason == "" {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: reason is empty")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: reason is empty", cross)
 	}
 
 	cmdObj, ok := mp["command"]
 	if !ok || cmdObj == nil {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: command is required")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: command is required", cross)
 	}
 	command, ok := asString(cmdObj)
 	if !ok {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: command must be string")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: command must be string", cross)
 	}
 	if command == "" {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: command is empty")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: command is empty", cross)
 	}
 
 	var sandboxFlag bool
@@ -307,10 +296,7 @@ func runTask(session *structs.Chats, mp map[string]*any, cross []*any) (bool, []
 		timeout = 60
 	}
 	if timeout >= 300 {
-		boolx := false
-		success := any(boolx)
-		out := any("[System] Parameter Error: timeout must less than 300")
-		return false, cross, map[string]*any{"success": &success, "error": &out}, nil
+		return errResult("[System] Parameter Error: timeout must less than 300", cross)
 	}
 
 	logger.Info("run shell \"%s\"(reason: %s)(%ds) sandbox:%v in ID=%d,agentID=%s", command, reason, timeout, sandboxFlag, session.ID, session.CurrentAgentID)
@@ -503,13 +489,7 @@ func getShell(shell string) string {
 }
 
 func genOSInfo(session *structs.Chats) (string, error) {
-	if sysVer == "" {
-		sysVerTmp, err := host.Info()
-		if err != nil {
-			sysVer = "unknown"
-		}
-		sysVer = sysVerTmp.Platform + " " + sysVerTmp.PlatformVersion
-	}
+	sysVer := sysVerOnce()
 	return prompts.Render(templateSys, struct {
 		Workdir string
 		SysOS   string

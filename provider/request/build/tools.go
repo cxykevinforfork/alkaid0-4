@@ -57,6 +57,7 @@ func Tools(session *structs.Chats) (string, string, *[]*parser.ToolsDefine) {
 	})
 
 	toolsDef := make([]*parser.ToolsDefine, 0)
+	toolobj.ToolsMu.RLock()
 	for k, v := range toolobj.ToolsList {
 		// Global 工具不包含在总工具表中，但 hooks 已通过 globalToolTraceStr 处理
 		if k == "" {
@@ -86,6 +87,7 @@ func Tools(session *structs.Chats) (string, string, *[]*parser.ToolsDefine) {
 		toolsDef = append(toolsDef, toolDefObj)
 	}
 
+	toolobj.ToolsMu.RUnlock()
 	return scopesString, globalToolTraceStr, &toolsDef
 }
 
@@ -103,6 +105,7 @@ func checkToolScope(session *structs.Chats, scope string) bool {
 func ToolsSolver(session *structs.Chats, callback func(string, string, map[string]*any) error) *[]*parser.ToolsDefine {
 
 	toolsDef := make([]*parser.ToolsDefine, 0)
+	toolobj.ToolsMu.RLock()
 	for k, v := range toolobj.ToolsList {
 		if k == "" {
 			continue
@@ -150,5 +153,6 @@ func ToolsSolver(session *structs.Chats, callback func(string, string, map[strin
 		toolsDef = append(toolsDef, toolDefObj)
 	}
 
+	toolobj.ToolsMu.RUnlock()
 	return &toolsDef
 }

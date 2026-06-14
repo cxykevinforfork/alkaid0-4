@@ -196,7 +196,7 @@ func SelectModel(session *structs.Chats, modelID int32) error {
 
 // SummarySession 汇总会话
 func SummarySession(ctx context.Context, session *structs.Chats) (string, error) {
-	return request.SummarySession(context.Background(), session)
+	return request.SummarySession(ctx, session)
 }
 
 // GetHistory 获取历史消息

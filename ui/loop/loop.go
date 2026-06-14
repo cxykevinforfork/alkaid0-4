@@ -117,6 +117,18 @@ func (p *Object) Start(ctx context.Context) {
 
 	var needCompress bool
 
+	// doAutoSummary 执行自动摘要并发送回调通知（提取的公共逻辑，复用 4 次）
+	doAutoSummary := func() {
+		logger.Info("start auto summary in session=%d", session.ID)
+		call(AIResponse{SummaryText: "", SummaryFlag: true})
+		summaryText, err := funcs.SummarySession(p.ctx, session)
+		if err != nil {
+			call(AIResponse{Error: fmt.Errorf("loop error when auto summary %v", err), StopReason: StopReasonError})
+		}
+		call(AIResponse{SummaryText: summaryText, SummaryFlag: true})
+		needCompress = false
+	}
+
 	// runResponseLoop 启动响应循环：发送请求 → 接收流式响应 → 处理工具调用结果 → 判断是否需要继续
 	var runResponseLoop func()
 	runResponseLoop = func() {
@@ -134,25 +146,7 @@ func (p *Object) Start(ctx context.Context) {
 
 			// 令牌数达到压缩阈值时，在下一轮请求前执行自动摘要
 			if needCompress {
-				logger.Info("start auto summary in session=%d", session.ID)
-				call(AIResponse{
-					SummaryText: "",
-					SummaryFlag: true,
-				})
-				summaryText, err := funcs.SummarySession(p.ctx, session)
-				if err != nil {
-					call(AIResponse{
-						Error:      fmt.Errorf("loop error when auto summary %v", err),
-						StopReason: StopReasonError,
-					})
-				}
-
-				call(AIResponse{
-					SummaryText: summaryText,
-					SummaryFlag: true,
-				})
-
-				needCompress = false
+				doAutoSummary()
 			}
 
 			finish, err := funcs.SendRequest(responseCtx, session, func(delta string, thinkingDelta string, id uint64, usage reqStructs.Usage, agentID *string) error {
@@ -240,6 +234,7 @@ func (p *Object) Start(ctx context.Context) {
 							Error:      fmt.Errorf("loop error in pending tool calls: %v", pErr),
 							StopReason: StopReasonError,
 						})
+						break
 					} else if autoHandled {
 						if approved {
 							continue
@@ -251,25 +246,7 @@ func (p *Object) Start(ctx context.Context) {
 						}
 
 						if needCompress {
-							logger.Info("start auto summary in session=%d", session.ID)
-							call(AIResponse{
-								SummaryText: "",
-								SummaryFlag: true,
-							})
-							summaryText, err := funcs.SummarySession(p.ctx, session)
-							if err != nil {
-								call(AIResponse{
-									Error:      fmt.Errorf("loop error when auto summary %v", err),
-									StopReason: StopReasonError,
-								})
-							}
-
-							call(AIResponse{
-								SummaryText: summaryText,
-								SummaryFlag: true,
-							})
-
-							needCompress = false
+							doAutoSummary()
 						}
 
 						call(AIResponse{
@@ -293,25 +270,7 @@ func (p *Object) Start(ctx context.Context) {
 					}
 
 					if needCompress {
-						logger.Info("start auto summary in session=%d", session.ID)
-						call(AIResponse{
-							SummaryText: "",
-							SummaryFlag: true,
-						})
-						summaryText, err := funcs.SummarySession(p.ctx, session)
-						if err != nil {
-							call(AIResponse{
-								Error:      fmt.Errorf("loop error when auto summary %v", err),
-								StopReason: StopReasonError,
-							})
-						}
-
-						call(AIResponse{
-							SummaryText: summaryText,
-							SummaryFlag: true,
-						})
-
-						needCompress = false
+						doAutoSummary()
 					}
 					call(AIResponse{
 						StopReason: StopReasonModel,
@@ -379,25 +338,7 @@ func (p *Object) Start(ctx context.Context) {
 	// 获取用户输入
 	for {
 		if needCompress {
-			logger.Info("start auto summary in session=%d", session.ID)
-			call(AIResponse{
-				SummaryText: "",
-				SummaryFlag: true,
-			})
-			summaryText, err := funcs.SummarySession(p.ctx, session)
-			if err != nil {
-				call(AIResponse{
-					Error:      fmt.Errorf("loop error when auto summary %v", err),
-					StopReason: StopReasonError,
-				})
-			}
-
-			call(AIResponse{
-				SummaryText: summaryText,
-				SummaryFlag: true,
-			})
-
-			needCompress = false
+			doAutoSummary()
 		}
 		select {
 		case <-p.ctx.Done():
