@@ -61,6 +61,19 @@ func SimpleOpenAIRequest(ctx context.Context, baseURL, apiKey, model string, bod
 	}
 	defer resp.Body.Close()
 
+	// 当 context 被取消时关闭 response body，以中断阻塞的 SSE 读取。
+	// Go 的 http.Client 在请求发送后的 body 读取阶段不会检查 context，
+	// 因此需要在单独的 goroutine 中监听取消信号并主动关闭连接。
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			resp.Body.Close()
+		case <-done:
+		}
+	}()
+
 	// 检查HTTP状态码
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -82,6 +95,10 @@ func SimpleOpenAIRequest(ctx context.Context, baseURL, apiKey, model string, bod
 		if err != nil {
 			if err == io.EOF {
 				break
+			}
+			// 如果 context 已被取消（如用户调用了 cancel），返回 context 错误而非读取错误
+			if ctx.Err() != nil {
+				return ctx.Err()
 			}
 			logger.Error("call openai chat error when read: %v", err)
 			logger.Debug("error body: %s", string(line))

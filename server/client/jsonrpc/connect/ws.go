@@ -94,6 +94,7 @@ func StartWs(handler func(string, func(string) error, uint64) (returnString stri
 		}()
 
 		loggerWs.Info("new connection: %d", connID)
+			var writeMu sync.Mutex
 
 		// 处理来自 WebSocket 的消息
 		for {
@@ -105,26 +106,33 @@ func StartWs(handler func(string, func(string) error, uint64) (returnString stri
 				}
 				break
 			}
+			// 在独立 goroutine 中处理每个请求，防止长时间阻塞（如 session/prompt 等待 AI 响应）
+			// 使得 session/cancel 等请求能在此连接上被并发处理
+			go func(msg []byte) {
+				responseStr, shouldExit := handler(string(msg), func(t string) error {
+					writeMu.Lock()
+					err := ws.WriteMessage(websocket.TextMessage, []byte(t))
+					writeMu.Unlock()
+					return err
+				}, connID)
 
-			// 调用 handler 处理请求
-			responseStr, shouldExit := handler(string(message), func(t string) error {
-				// 发送消息到 WebSocket
-				return ws.WriteMessage(websocket.TextMessage, []byte(t))
-			}, connID)
-
-			// 将响应写入 WebSocket
-			if responseStr != "" {
-				err := ws.WriteMessage(websocket.TextMessage, []byte(responseStr))
-				if err != nil {
-					loggerWs.Error("websocket write error: %v", err)
-					break
+				// 将响应写入 WebSocket
+				if responseStr != "" {
+					writeMu.Lock()
+					err := ws.WriteMessage(websocket.TextMessage, []byte(responseStr))
+					writeMu.Unlock()
+					if err != nil {
+						loggerWs.Error("websocket write error: %v", err)
+					}
 				}
-			}
 
-			// 检查是否需要退出
-			if shouldExit {
-				break
-			}
+				// 检查是否需要退出
+				if shouldExit {
+					writeMu.Lock()
+					ws.Close()
+					writeMu.Unlock()
+				}
+			}(message)
 		}
 
 		loggerWs.Info("connection close: %d", connID)
