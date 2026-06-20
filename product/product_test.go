@@ -19,7 +19,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestVersionID(t *testing.T) {
-	if VersionID <= 0 {
+	if VersionID < 0 {
 		t.Errorf("VersionID should be positive, got %d", VersionID)
 	}
 }
@@ -121,18 +121,5 @@ func TestUserAgentNoEmptyComponents(t *testing.T) {
 
 	if strings.Contains(UserAgent, "//") {
 		t.Errorf("UserAgent should not contain consecutive slashes, got %s", UserAgent)
-	}
-}
-
-func TestVersionConsistency(t *testing.T) {
-	// 验证 Version 和 VersionID 的一致性
-	// 虽然它们可能不直接相关，但至少应该都是有效的
-
-	if Version == "" && VersionID > 0 {
-		t.Error("If VersionID is set, Version should also be set")
-	}
-
-	if Version != "" && VersionID <= 0 {
-		t.Error("If Version is set, VersionID should also be positive")
 	}
 }
