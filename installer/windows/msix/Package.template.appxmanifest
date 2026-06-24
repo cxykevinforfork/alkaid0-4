@@ -34,7 +34,7 @@ xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
       <Extensions>
         <uap5:Extension Category="windows.appExecutionAlias">
           <uap5:AppExecutionAlias>
-            <uap5:ExecutionAlias Alias="alkaid0" />
+            <uap5:ExecutionAlias Alias="alkaid0.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
         <desktop6:Extension Category="windows.service" EntryPoint="Windows.FullTrustApplication" Executable="Bin/alkservice.exe">
