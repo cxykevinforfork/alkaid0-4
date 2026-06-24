@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/cxykevin/alkaid0/log"
 	"github.com/cxykevin/alkaid0/storage/structs"
@@ -51,6 +52,16 @@ func InitDB(dbPath string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db %s: %w", dbPath, err)
 	}
+
+	// 限制 SQLite 连接池：单连接模式避免锁争用，也减少内存开销
+	// SQLite 本质上是单写入者数据库，多个连接只会增加内存和锁冲突
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	if err := db.AutoMigrate(structs.Tables...); err != nil {
 		return nil, fmt.Errorf("failed to automigrate: %w", err)

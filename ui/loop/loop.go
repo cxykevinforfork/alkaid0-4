@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/cxykevin/alkaid0/config"
 	"github.com/cxykevin/alkaid0/log"
@@ -77,6 +76,8 @@ type Object struct {
 	ctxCancel     context.CancelFunc
 	session       *structs.Chats
 	ctx           context.Context
+	done          chan struct{}
+	closeOnce     sync.Once
 }
 
 // queueSize 队列缓冲区大小
@@ -90,6 +91,7 @@ func New(session *structs.Chats) *Object {
 		recvSyncQueue: make(chan struct{}),
 		lock:          sync.Mutex{},
 		session:       session,
+		done:          make(chan struct{}),
 	}
 
 }
@@ -450,6 +452,9 @@ func (p *Object) Stop() {
 // Cancel 终止整个 Loop 生命周期（而非仅当前请求）。
 // 调用后 Start() 主循环退出，所有等待中的消息被丢弃。
 func (p *Object) Cancel() {
+	p.closeOnce.Do(func() {
+		close(p.done)
+	})
 	if p.ctxCancel != nil {
 		p.ctxCancel()
 	}
@@ -514,6 +519,8 @@ func (p *Object) Approve() error {
 
 // SetCallback 注册 AI 响应回调函数。在独立 goroutine 中循环读取 recvQueue，
 // 将 AIResponse 对象传递给 UI 层进行处理。通过 recvSyncQueue 实现背压同步。
+//
+// 使用双 chan select 而非 busy-poll + sleep，idle 时 goroutine 挂起不消耗 CPU。
 func (p *Object) SetCallback(callFunc func(AIResponse)) {
 	go func() {
 		for {
@@ -521,15 +528,8 @@ func (p *Object) SetCallback(callFunc func(AIResponse)) {
 			case call := <-p.recvQueue:
 				callFunc(call)
 				p.recvSyncQueue <- struct{}{} // 通知发送方已完成处理
-			default:
-				if p.ctx != nil {
-					select {
-					case <-p.ctx.Done():
-						return
-					default:
-					}
-				}
-				time.Sleep(10 * time.Millisecond)
+			case <-p.done:
+				return
 			}
 		}
 	}()

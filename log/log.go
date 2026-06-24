@@ -92,7 +92,7 @@ func Load() {
 	Logger = log.New(file, "", log.LstdFlags)
 
 	// 初始化异步日志channel
-	logChannel = make(chan logMessage, 1000) // 缓冲1000条日志
+	logChannel = make(chan logMessage, 200) // 缓冲200条日志，静默时可大幅减少内存占用
 
 	// 启动日志处理goroutine
 	go logWorker()

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cxykevin/alkaid0/log"
 	"github.com/cxykevin/alkaid0/product"
@@ -16,7 +17,15 @@ import (
 )
 
 var logger *log.LogsObj
-var httpClient = &http.Client{Timeout: Timeout}
+var httpClient = &http.Client{
+	Timeout: Timeout,
+	Transport: &http.Transport{
+		MaxIdleConns:        2,
+		MaxIdleConnsPerHost: 1,
+		IdleConnTimeout:     30 * time.Second,
+		DisableCompression:  false,
+	},
+}
 
 func init() {
 	logger = log.New("request")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	_ "embed" // embed logo
@@ -96,6 +97,11 @@ func Startup() {
 	}
 
 	logger.Info("starting alkaid0...")
+
+	// 设置 Go 运行时内存软限制，让 GC 在内存超限时更积极回收并归还给 OS
+	// 避免 idle 时 Go 运行时持有过多不释放的内存
+	debug.SetMemoryLimit(256 * 1024 * 1024) // 256MB
+
 	openai.Start()
 	config.Load()
 	log.Load()
