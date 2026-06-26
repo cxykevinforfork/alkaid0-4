@@ -213,11 +213,11 @@ jobs:
           
           BINARY_ARCH=amd64 GOARCH=amd64 --target ./output/alkaid0-linux-amd64.apk --packager apk
           BINARY_ARCH=amd64 GOARCH=amd64 --target ./output/alkaid0-linux-amd64.deb --packager deb
-          BINARY_ARCH=amd64 GOARCH=amd64 --target ./output/alkaid0-linux-amd64.pkg.zst --packager archlinux
+          BINARY_ARCH=amd64 GOARCH=amd64 --target ./output/alkaid0-linux-amd64.pkg.tar.zst --packager archlinux
           BINARY_ARCH=amd64 GOARCH=amd64 --target ./output/alkaid0-linux-amd64.rpm --packager rpm
           BINARY_ARCH=arm64 GOARCH=arm64 --target ./output/alkaid0-linux-arm64.apk --packager apk
           BINARY_ARCH=arm64 GOARCH=arm64 --target ./output/alkaid0-linux-arm64.deb --packager deb
-          BINARY_ARCH=arm64 GOARCH=arm64 --target ./output/alkaid0-linux-arm64.pkg.zst --packager archlinux
+          BINARY_ARCH=arm64 GOARCH=arm64 --target ./output/alkaid0-linux-arm64.pkg.tar.zst --packager archlinux
           BINARY_ARCH=arm64 GOARCH=arm64 --target ./output/alkaid0-linux-arm64.rpm --packager rpm
 
       - name: 上传产物
