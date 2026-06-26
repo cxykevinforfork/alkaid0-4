@@ -1,3 +1,6 @@
+arch: ${GOARCH}
+version: ${VERSION}
+
 contents:
   # 程序主文件
   - src: ./alkaid0-linux-${BINARY_ARCH}
@@ -10,3 +13,17 @@ contents:
 scripts:
   postinstall: ./post.sh
   preremove: ./clean.sh
+
+overrides:
+  deb:
+    depends:
+      - libc6          # Debian/Ubuntu 的 libc 包
+  rpm:
+    depends:
+      - glibc          # RHEL/Fedora 的 libc 包
+  archlinux:
+    depends:
+      - glibc          # Arch Linux 的 libc 包
+  apk:
+    depends:
+      - musl           # Alpine 的 musl libc 包
