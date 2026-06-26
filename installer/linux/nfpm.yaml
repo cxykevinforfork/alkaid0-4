@@ -1,3 +1,5 @@
+name: alkaid0
+
 arch: ${GOARCH}
 version: ${VERSION}
 
