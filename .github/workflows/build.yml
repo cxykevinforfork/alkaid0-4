@@ -215,15 +215,29 @@ jobs:
           VERSION=${VERSION#v}
           export VERSION
           
-          BINARY_ARCH=amd64 GOARCH=amd64 nfpm pkg --target ./output/alkaid0-linux-amd64.apk --packager apk
-          BINARY_ARCH=amd64 GOARCH=amd64 nfpm pkg --target ./output/alkaid0-linux-amd64.deb --packager deb
-          BINARY_ARCH=amd64 GOARCH=amd64 nfpm pkg --target ./output/alkaid0-linux-amd64.pkg.tar.zst --packager archlinux
-          BINARY_ARCH=amd64 GOARCH=amd64 nfpm pkg --target ./output/alkaid0-linux-amd64.rpm --packager rpm
-          BINARY_ARCH=arm64 GOARCH=arm64 nfpm pkg --target ./output/alkaid0-linux-arm64.apk --packager apk
-          BINARY_ARCH=arm64 GOARCH=arm64 nfpm pkg --target ./output/alkaid0-linux-arm64.deb --packager deb
-          BINARY_ARCH=arm64 GOARCH=arm64 nfpm pkg --target ./output/alkaid0-linux-arm64.pkg.tar.zst --packager archlinux
-          BINARY_ARCH=arm64 GOARCH=arm64 nfpm pkg --target ./output/alkaid0-linux-arm64.rpm --packager rpm
-
+          for arch in amd64 arm64; do
+              for packager in apk deb archlinux rpm; do
+                  # 根据包类型确定文件后缀
+                  case $packager in
+                      apk)       suffix="apk" ;;
+                      deb)       suffix="deb" ;;
+                      archlinux) suffix="pkg.tar.zst" ;;
+                      rpm)       suffix="rpm" ;;
+                  esac
+                  
+                  # 替换模板中的变量，生成 nfpm.yml
+                  sed -e "s/\${VERSION}/$VERSION/g" \
+                      -e "s/\${GOARCH}/$arch/g" \
+                      -e "s/\${BINARY_ARCH}/$arch/g" \
+                      nfpm.template.yml > nfpm.yml
+                  
+                  # 执行打包命令
+                  BINARY_ARCH="$arch" GOARCH="$arch" \
+                  nfpm pkg \
+                      --target "./output/alkaid0-linux-${arch}.${suffix}" \
+                      --packager "$packager"
+              done
+          done
       - name: 上传产物
         uses: actions/upload-artifact@v7
         with:
