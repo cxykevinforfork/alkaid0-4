@@ -268,16 +268,17 @@ jobs:
         with:
           name: alkaid0-msix
           path: ./binaries
+          
+      - name: 下载 Linux 包
+        uses: actions/download-artifact@v8
+        with:
+          name: alkaid0-linux-pkgs
+          path: ./binaries
 
       - name: 上传到 Release
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            ./binaries/alkaid0-linux-amd64
-            ./binaries/alkaid0-windows-amd64.exe
-            ./binaries/alkaid0-linux-arm64
-            ./binaries/alkaid0-darwin-amd64
-            ./binaries/alkaid0-darwin-arm64
-            ./binaries/alkaid0-windows-amd64.msix
+            ./binaries/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
