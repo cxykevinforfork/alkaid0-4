@@ -174,7 +174,7 @@ jobs:
           if ([string]::IsNullOrEmpty($env:CERT_KEY)) {
             Write-Host "⚠️ CERT_KEY secret 未设置，正在生成新证书..."
             # 生成自签名证书
-            winapp cert generate --manifest "installer\windows\msix\Package.appxmanifest" --output ./devcert.pfx
+            winapp cert generate --publisher "CN=cxykevin" --output ./devcert.pfx
             # 读取 PFX 并转为 Base64
             $bytes = [System.IO.File]::ReadAllBytes("./devcert.pfx")
             $base64 = [System.Convert]::ToBase64String($bytes)
